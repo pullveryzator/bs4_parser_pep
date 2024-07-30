@@ -7,20 +7,11 @@ from bs4 import BeautifulSoup
 from tqdm import tqdm
 
 from configs import configure_argument_parser, configure_logging
-from constants import BASE_DIR, MAIN_DOC_URL, PEP_PAGE
+from constants import BASE_DIR, MAIN_DOC_URL, PEP_PAGE, EXPECTED_STATUS
 from outputs import control_output
 from utils import get_response, find_tag
 
-EXPECTED_STATUS = {
-    'A': ('Active', 'Accepted'),
-    'D': ('Deferred',),
-    'F': ('Final',),
-    'P': ('Provisional',),
-    'R': ('Rejected',),
-    'S': ('Superseded',),
-    'W': ('Withdrawn',),
-    '': ('Draft', 'Active'),
-}
+
 def whats_new(session):
     whats_new_url = urljoin(MAIN_DOC_URL, 'whatsnew/')
     response = get_response(session, whats_new_url)
