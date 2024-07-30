@@ -98,6 +98,7 @@ def download(session):
 def pep(session):
     results = [('Статус', 'Количество')]
     temp_list = []
+    unexpected_status = {}
     response = get_response(session, PEP_PAGE)
     if response is None:
         return
@@ -128,7 +129,9 @@ def pep(session):
                         f'Статус в карточке: {status_in}\n'
                         f'Ожидаемые статусы: {EXPECTED_STATUS[status_out]}'
                     )
-                    temp_list.append(status_out)
+                    temp_list.append(status_in)
+                    unexpected_status[status_in] = (status_in, )
+    EXPECTED_STATUS.update(unexpected_status)
     for key in EXPECTED_STATUS:
         results.append((EXPECTED_STATUS[key], temp_list.count(key)))
     results.append((('Total', ), len(temp_list)))
