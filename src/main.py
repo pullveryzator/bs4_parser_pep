@@ -8,8 +8,9 @@ from tqdm import tqdm
 
 from configs import configure_argument_parser, configure_logging
 from constants import BASE_DIR, MAIN_DOC_URL, PEP_PAGE, EXPECTED_STATUS
+from exceptions import ParserFindTextException
 from outputs import control_output
-from utils import get_response, find_tag
+from utils import get_response, find_tag, find_all_tags
 
 
 def whats_new(session):
@@ -20,8 +21,8 @@ def whats_new(session):
     soup = BeautifulSoup(response.text, features='lxml')
     main_div = find_tag(soup, 'section', attrs={'id': 'what-s-new-in-python'})
     div_with_ul = find_tag(main_div, 'div', attrs={'class': 'toctree-wrapper'})
-    sections_by_python = div_with_ul.find_all(
-        'li', attrs={'class': 'toctree-l1'}
+    sections_by_python = find_all_tags(
+        div_with_ul, 'li', attrs={'class': 'toctree-l1'}
     )
     results = [('Ссылка на статью', 'Заголовок', 'Редактор, автор')]
     for section in tqdm(sections_by_python, colour='BLUE'):
@@ -45,13 +46,15 @@ def latest_versions(session):
         return
     soup = BeautifulSoup(response.text, features='lxml')
     sidebar = find_tag(soup, 'div', {'class': 'sphinxsidebarwrapper'})
-    ul_tags = sidebar.find_all('ul')
+    ul_tags = find_all_tags(sidebar, 'ul')
     for ul in ul_tags:
         if 'All versions' in ul.text:
-            a_tags = ul.find_all('a')
+            a_tags = find_all_tags(ul, 'a')
             break
     else:
-        raise Exception('Ничего не нашлось.')
+        raise ParserFindTextException(
+            f'Строка "All versions" в теге {ul} не найдена.'
+        )
     results = [('Ссылка на документацию', 'Версия', 'Статус')]
     pattern = r'Python (?P<version>\d\.\d+) \((?P<status>.*)\)'
     for a_tag in a_tags:
@@ -103,38 +106,41 @@ def pep(session):
     if response is None:
         return
     soup = BeautifulSoup(response.text, features='lxml')
-    section_tag = find_tag(soup, 'section', {'id': 'numerical-index'})
-    tbody_tag = find_tag(section_tag, 'tbody')
-    tr_tags = tbody_tag.find_all('tr')
-    for tr_tag in tr_tags:
-        a_tag = tr_tag.find('a')
+    tbody_tag = find_tag(
+        find_tag(soup, 'section', {'id': 'numerical-index'}), 'tbody'
+    )
+    tr_tags = find_all_tags(tbody_tag, 'tr')
+    for tr_tag in tqdm(tr_tags):
+        a_tag = find_tag(tr_tag, 'a')
         pep_link = a_tag['href']
-        abbr_tag = tr_tag.find('abbr')
+        abbr_tag = find_tag(tr_tag, 'abbr')
         status_out = abbr_tag.text[1:]
         pep_full_link = urljoin(PEP_PAGE, pep_link)
-        response = get_response(session, pep_full_link)
-        soup = BeautifulSoup(response.text, features='lxml')
-        section_tag = find_tag(soup, 'section', {'id': 'pep-content'})
-        dl_tag = find_tag(section_tag, 'dl')
-        dt_tags = dl_tag.find_all('dt')
-        for dt_tag in dt_tags:
-            if dt_tag.text == 'Status:':
-                status_in = dt_tag.find_next_sibling().string
-                if status_in in EXPECTED_STATUS[status_out]:
-                    temp_list.append(status_out)
-                else:
-                    logging.info(
-                        f'\nНесовпадающие статусы:\n'
-                        f'{pep_full_link}\n'
-                        f'Статус в карточке: {status_in}\n'
-                        f'Ожидаемые статусы: {EXPECTED_STATUS[status_out]}'
-                    )
-                    temp_list.append(status_in)
-                    unexpected_status[status_in] = (status_in, )
+        pep_response = get_response(session, pep_full_link)
+        pep_soup = BeautifulSoup(pep_response.text, features='lxml')
+        dl_tag = find_tag(
+            find_tag(pep_soup, 'section', {'id': 'pep-content'}), 'dl'
+        )
+        status_in = next(
+            (dt_tag.find_next_sibling().string for dt_tag in
+             find_all_tags(dl_tag, 'dt')
+                if dt_tag.text == 'Status:'), None)
+        if status_in:
+            if status_in in EXPECTED_STATUS[status_out]:
+                temp_list.append(status_out)
+            else:
+                expected_status = ', '.join(EXPECTED_STATUS[status_out])
+                logging.info(
+                    f'\nНесовпадающие статусы:\n{pep_full_link}\n'
+                    f'Статус в карточке: {status_in}\n'
+                    f'Ожидаемые статусы: {expected_status}')
+                temp_list.append(status_in)
+                unexpected_status[status_in] = (status_in, )
     EXPECTED_STATUS.update(unexpected_status)
-    for key in EXPECTED_STATUS:
-        results.append((EXPECTED_STATUS[key], temp_list.count(key)))
-    results.append((('Total', ), len(temp_list)))
+    results.extend(
+        (', '.join(EXPECTED_STATUS[key]), temp_list.count(key)) for key in
+        EXPECTED_STATUS)
+    results.append(('Total', len(temp_list)))
     return results
 
 

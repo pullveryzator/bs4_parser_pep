@@ -10,11 +10,11 @@ LOG_FORMAT = '"%(asctime)s - [%(levelname)s] - %(message)s"'
 DATETIME_FOR_LOG_FORMAT = '%d.%m.%Y %H:%M:%S'
 EXPECTED_STATUS = {
     'A': ('Active', 'Accepted'),
-    'D': ('Deferred',),
-    'F': ('Final',),
-    'P': ('Provisional',),
-    'R': ('Rejected',),
-    'S': ('Superseded',),
-    'W': ('Withdrawn',),
+    'D': ('Deferred', ),
+    'F': ('Final', ),
+    'P': ('Provisional', ),
+    'R': ('Rejected', ),
+    'S': ('Superseded', ),
+    'W': ('Withdrawn', ),
     '': ('Draft', 'Active'),
 }
